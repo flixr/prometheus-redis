@@ -1,9 +1,12 @@
+#!/usr/bin/env python
+
 import redis
 import sys
 import time
 import yaml
 from prometheus_client import start_http_server
 from prometheus_client.core import GaugeMetricFamily, REGISTRY
+
 
 class RedisExporter(object):
     def __init__(self, query, redisConnections):
@@ -14,12 +17,16 @@ class RedisExporter(object):
         for metric_name in self.query['metrics']:
             metric = self.query['metrics'][metric_name]
             value = self.redisConnections[metric['connection']].execute_command(metric['query'])
-
-            yield GaugeMetricFamily(
-                metric.get('name', metric_name),
-                metric['description'],
-                value = float(value)
-            )
+            if value is not None:
+                try:
+                    value = float(value)
+                except TypeError:
+                    continue
+                yield GaugeMetricFamily(
+                    metric.get('name', metric_name),
+                    metric['description'],
+                    value=value
+                )
 
 if __name__ == "__main__":
     if len(sys.argv) == 0:
@@ -35,10 +42,10 @@ if __name__ == "__main__":
     for conn in query['connections']:
         connParams = query['connections'][conn]
         redisConnections[conn] = redis.Redis(
-            host = connParams.get('host', 'localhost'),
-            port = connParams.get('port', 6379),
-            db = connParams.get('database', 0),
-            password = connParams.get('password', None)
+            host=connParams.get('host', 'localhost'),
+            port=connParams.get('port', 6379),
+            db=connParams.get('database', 0),
+            password=connParams.get('password', None)
         )
 
     REGISTRY.register(RedisExporter(query, redisConnections))
