@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
+
 import redis
 import sys
 import time
@@ -16,15 +18,21 @@ class RedisExporter(object):
     def collect(self):
         for metric_name in self.query['metrics']:
             metric = self.query['metrics'][metric_name]
-            value = self.redisConnections[metric['connection']].execute_command(metric['query'])
+            if 'query' not in metric:
+                print("Warning: skipping metric '{}' without query".format(metric_name))
+                continue
+            # if connection is not given for a metric, use the "first" we find (not necessarily the first in yaml file)
+            conn = metric.get('connection', self.redisConnections.keys()[0])
+            value = self.redisConnections[conn].execute_command(metric['query'])
             if value is not None:
                 try:
                     value = float(value)
                 except TypeError:
+                    print("Error: {}: Could not convert value '{}' to float".format(metric_name, value))
                     continue
                 yield GaugeMetricFamily(
                     metric.get('name', metric_name),
-                    metric['description'],
+                    metric.get('description', ''),
                     value=value
                 )
 
